@@ -4,6 +4,7 @@
 import os
 import queue
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -86,6 +87,7 @@ class App(tk.Tk):
         self.progress_file = None
         self.start_time = 0.0
         self.mode = ""
+        self.last_out = ""
         self.log_queue = queue.Queue()
 
         # stato player
@@ -329,6 +331,7 @@ class App(tk.Tk):
         cmd += ["--progress-file", pf]
         self.progress_file = pf
         self.mode = mode
+        self.last_out = out
         self.start_time = time.time()
 
         self._clear_log()
@@ -345,8 +348,20 @@ class App(tk.Tk):
 
         self.proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1)
+            text=True, bufsize=1, start_new_session=True)
         threading.Thread(target=self._reader, daemon=True).start()
+
+    def _kill(self, proc):
+        """Termina il processo e tutto il suo gruppo (figli inclusi)."""
+        if proc is None:
+            return
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except Exception:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
 
     def _reader(self):
         for line in self.proc.stdout:
@@ -406,7 +421,7 @@ class App(tk.Tk):
 
         pf = self.progress_file
         self.progress_file = None
-        out = self.out_var.get().strip()
+        out = getattr(self, "last_out", "") or self.out_var.get().strip()
 
         if ok:
             self._log_append("\n– Elaborazione terminata correttamente.\n")
@@ -669,7 +684,7 @@ class App(tk.Tk):
     # ---------- cancellazione ----------
     def _cancel(self):
         if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
+            self._kill(self.proc)
             self._log("\n– Annullato dall'utente.\n")
 
     # ---------- log ----------
@@ -694,7 +709,7 @@ class App(tk.Tk):
         if self.proc and self.proc.poll() is None:
             if not messagebox.askyesno("Uscire?", "Elaborazione in corso. Interrompere?"):
                 return
-            self.proc.terminate()
+            self._kill(self.proc)
         self._player_stop()
         self.destroy()
 
