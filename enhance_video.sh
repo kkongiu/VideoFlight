@@ -199,6 +199,9 @@ TRANSFORM_TAIL=":zoom=1:optzoom=1:smoothing=${VIDSTAB_SMOOTHING},$COLOR_FILTER"
 
 # ---------- Barra di avanzamento (sequenziale) ----------
 PROG_BASE=0; PROG_RANGE=100
+# Durata in microsecondi (intera) per calcolare la % senza awk ad ogni riga
+DURATION_US=$(awk -v d="$DURATION" 'BEGIN{printf "%d", d * 1000000}')
+[[ "$DURATION_US" -le 0 ]] && DURATION_US=1
 
 # Progresso per la GUI: 4 righe => fase, %locale, %globale, velocità
 write_progress() {
@@ -211,8 +214,8 @@ progress() {
     case "$line" in
       out_time_us=*)
         out_us="${line#out_time_us=}"
-        if [[ "$DURATION" != "0" && -n "$out_us" ]]; then
-          pct=$(awk -v u="$out_us" -v d="$DURATION" 'BEGIN{printf "%d", (u/1000000)/d*100}')
+        if [[ "$out_us" =~ ^[0-9]+$ ]]; then
+          pct=$(( out_us * 100 / DURATION_US ))
           [[ "$pct" -gt 100 ]] && pct=100
         fi
         ;;

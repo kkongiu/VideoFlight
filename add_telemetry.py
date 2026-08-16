@@ -14,6 +14,7 @@ Uso:
 """
 
 import argparse
+import bisect
 import csv
 import math
 import os
@@ -28,7 +29,8 @@ from PIL import Image, ImageDraw, ImageFont
 # ------------------------------------------------------------------
 # Configurazione
 # ------------------------------------------------------------------
-FPS = 10                 # fps della minimappa
+FPS = 4                  # fps della minimappa (il GPS si aggiorna ~ogni 7 s: 4 fps
+                          # bastano e dimezzano il costo di rendering/encoding)
 MINIMAP_TARGET = 240     # larghezza finale della minimappa in overlay (px)
 OSD_FPS = 2              # fps del pannello OSD (i dati sono a 2 Hz)
 TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -69,11 +71,24 @@ def get_tile(z, x, y):
     path = os.path.join(TILE_CACHE, f"{z}_{x}_{y}.png")
     if not os.path.exists(path):
         url = TILE_URL.format(z=z, x=x, y=y)
-        r = requests.get(url, headers=TILE_HEADERS, timeout=20)
-        r.raise_for_status()
+        try:
+            r = requests.get(url, headers=TILE_HEADERS, timeout=20)
+            r.raise_for_status()
+        except Exception:
+            return None  # offline o errore server: tile non disponibile
+        data = r.content
+        if not data.startswith(b"\x89PNG"):
+            return None  # risposta non PNG (es. pagina di errore)
         with open(path, "wb") as f:
-            f.write(r.content)
-    return Image.open(path).convert("RGB")
+            f.write(data)
+    try:
+        return Image.open(path).convert("RGB")
+    except Exception:
+        try:
+            os.remove(path)  # tile corrotta in cache
+        except OSError:
+            pass
+        return None
 
 def fmt_ass_time(sec):
     sec = max(0.0, sec)
@@ -201,9 +216,12 @@ def build_map_image(rows):
     W = (tx1 - tx0 + 1) * 256
     H = (ty1 - ty0 + 1) * 256
     img = Image.new("RGB", (W, H), (240, 240, 240))
+    blank = Image.new("RGB", (256, 256), (235, 235, 235))
     for ty in range(ty0, ty1 + 1):
         for tx in range(tx0, tx1 + 1):
             tile = get_tile(z, tx, ty)
+            if tile is None:
+                tile = blank
             img.paste(tile, ((tx - tx0) * 256, (ty - ty0) * 256))
 
     # ritaglia alla bbox
@@ -268,6 +286,7 @@ def render_minimap(rows, out_path, dur, limit=None):
 
     font = find_font()
     fnt = ImageFont.truetype(font, 28) if font else None
+    times = [r["e"] for r in rows]
 
     def sample_pos(e):
         """Posizione liscia (spline Catmull-Rom sui punti GPS)."""
@@ -289,12 +308,12 @@ def render_minimap(rows, out_path, dur, limit=None):
         return px, py
 
     def sample_hdg(e):
-        """Rotta interpolata linearmente sui campioni (2Hz)."""
+        """Rotta interpolata linearmente sui campioni (binary search)."""
         if e <= rows[0]["e"]:
             return rows[0]["hdg"]
         if e >= rows[-1]["e"]:
             return rows[-1]["hdg"]
-        i = int(e * 2)
+        i = bisect.bisect_right(times, e) - 1
         i = max(0, min(i, len(rows) - 2))
         a, b = rows[i], rows[i + 1]
         frac = (e - a["e"]) / (b["e"] - a["e"]) if b["e"] > a["e"] else 0.0
@@ -357,6 +376,7 @@ def render_minimap(rows, out_path, dur, limit=None):
 # ------------------------------------------------------------------
 def render_osd(rows, out_path, dur):
     W, H = 336, 72
+    times = [r["e"] for r in rows]
     mono = "/System/Library/Fonts/Menlo.ttc"
     if not os.path.exists(mono):
         mono = find_font()
@@ -373,7 +393,7 @@ def render_osd(rows, out_path, dur):
         e = t_video - OFFSET
         if e < 0:
             return img
-        i = int(e * 2)
+        i = bisect.bisect_right(times, e) - 1
         i = max(0, min(i, len(rows) - 1))
         r = rows[i]
         cells = [
