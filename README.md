@@ -34,11 +34,18 @@ Pipeline se in un unico passaggio sequenziale (senza tagli tra segmenti):
   encoder `h264_videotoolbox` o `libx264`): `brew install ffmpeg`
 - **python3** con Tkinter 8.6+/9.0 per la GUI:
   `brew install python-tk@3.13`
-- Librerie Python per `add_telemetry.py` e la GUI: `pillow`, `requests`
-  (es. `/opt/homebrew/bin/python3.13 -m pip install pillow requests`)
+- Librerie Python per la GUI e per `add_telemetry.py`: `pillow`, `requests`
 
-Nota: sul progetto in uso la pipeline usa il `python3` di pyenv (dotato di
-`pillow` e `requests`), mentre la GUI usa il Python di Homebrew `python3.13`.
+Setup consigliato (virtualenv della GUI, usato da `avvia_gui.command`):
+
+```
+/opt/homebrew/bin/python3.13 -m venv .venv
+.venv/bin/python -m pip install pillow
+```
+
+Nota: la pipeline (`enhance_video.sh`) usa il `python3` di pyenv (dotato di
+`pillow` e `requests`) per generare gli overlay; la GUI usa il venv
+`.venv` (Tk 9.0 + Pillow) per il player video integrato.
 
 ## Uso
 
@@ -102,15 +109,15 @@ Funzionante:
 - stabilizzazione + miglioramento colore/audio in un solo passaggio
 - overlay OSD + minimappa con posizione fluida (spline)
 - anteprima rapida, file di progresso, GUI completa
+- **barre di avanzamento come controlli GUI**: indicatore a 3 step
+  (Analisi → Overlay → Elaborazione), barra complessiva e barra della fase
+  attiva, velocità e tempo stimato/trascorso
+- **player video integrato nella GUI**: al termine di anteprima o
+  conversione il risultato si carica direttamente nella finestra, con
+  Play/Pausa, Riavvolgi, slider di posizione e timestamp (decodifica via
+  ffmpeg, visualizzazione con Pillow)
 - la GUI è stata adattata a Tk 9.0 (il Tk 8.5 del Python pyenv non è
   compatibile con macOS 15: usare comunque `avvia_gui.command`)
-
-In arrivo:
-
-- **player video integrato nella GUI** (visualizzare l'anteprima dentro la
-  finestra, senza aprire QuickTime)
-- **barre di avanzamento come controlli GUI** (una per fase, più
-  l'indicatore a step)
 
 Limiti noti:
 

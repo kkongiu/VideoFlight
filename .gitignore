@@ -14,5 +14,8 @@ __pycache__/
 .DS_Store
 .localized
 
+# Virtualenv della GUI
+.venv/
+
 # Log temporanei
 *.log

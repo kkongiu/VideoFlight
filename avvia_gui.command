@@ -6,6 +6,16 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUI="$DIR/gui.py"
 
+# Se esiste il virtualenv di progetto, è la scelta preferita (ha Tk + Pillow)
+if [[ -x "$DIR/.venv/bin/python" ]]; then
+  ver=$("$DIR/.venv/bin/python" -c "import _tkinter as t; print(t.TK_VERSION)" 2>/dev/null) || ver=""
+  if [[ "$ver" == 9.* || "$ver" == 8.6* ]]; then
+    echo "Uso: $DIR/.venv (Tk $ver, Pillow)"
+    "$DIR/.venv/bin/python" "$GUI"
+    exit 0
+  fi
+fi
+
 # Candidati in ordine di preferenza (Homebrew -> python.org -> di sistema -> PATH)
 CANDIDATES=(
   /opt/homebrew/bin/python3
