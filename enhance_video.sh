@@ -22,7 +22,8 @@ Stabilizza e migliora la resa di video GoPro (prima serie) con ffmpeg:
 
 Opzioni:
   --csv FILE          telemetria CSV (RadioMaster/Betaflight) per OSD + minimappa
-  --offset SEC        anticipo del video rispetto al CSV (default 3.5)
+  --offset SEC        anticipo del video rispetto al CSV (default 3.5);
+                      usa --offset auto per il rilevamento automatico
   --preview SEC       genera solo i primi SEC secondi (preview veloce)
   --out FILE          nome del file di output
   --progress-file F   scrive fase+percentuale (0-100) su F (per la GUI)
@@ -119,6 +120,7 @@ fi
 if [[ -z "$OUTPUT" ]]; then
   OUTPUT="${INPUT%.*}_enhanced.mp4"
 fi
+ORIG_INPUT="$INPUT"
 if [[ -n "$CSV" && ! -f "$CSV" ]]; then
   echo "ERRORE: csv non trovato: $CSV" >&2
   exit 1
@@ -132,8 +134,13 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY_SCRIPT="$SCRIPT_DIR/add_telemetry.py"
+DETECT_SCRIPT="$SCRIPT_DIR/detect_offset.py"
 if [[ -n "$CSV" && ! -f "$PY_SCRIPT" ]]; then
   echo "ERRORE: add_telemetry.py non trovato accanto allo script: $PY_SCRIPT" >&2
+  exit 1
+fi
+if [[ "$OFFSET" == "auto" && ! -f "$DETECT_SCRIPT" ]]; then
+  echo "ERRORE: detect_offset.py non trovato: $DETECT_SCRIPT" >&2
   exit 1
 fi
 if [[ -n "$CSV" ]] && ! command -v python3 >/dev/null 2>&1; then
@@ -404,6 +411,18 @@ WEOF
     mv "$WORKDIR/joined.mp4" "$OUTPUT"
   fi
 }
+
+# ---------- Rilevamento automatico dell'offset ----------
+if [[ "$OFFSET" == "auto" ]]; then
+  if [[ -z "$CSV" ]]; then
+    echo "ERRORE: --offset auto richiede --csv" >&2
+    exit 1
+  fi
+  echo "==> Rilevo l'offset automaticamente (analisi audio + throttle)..."
+  OFFSET=$(python3 "$DETECT_SCRIPT" --video "$ORIG_INPUT" --csv "$CSV" --quiet) \
+    || { echo "ERRORE: rilevamento offset fallito" >&2; exit 1; }
+  echo "==> Offset rilevato: ${OFFSET}s"
+fi
 
 # ---------- Scelta modalità ----------
 if [[ "$PARALLEL" == "true" ]] && \

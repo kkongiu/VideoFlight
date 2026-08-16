@@ -25,7 +25,8 @@ Pipeline se in un unico passaggio sequenziale (senza tagli tra segmenti):
 |---|---|
 | `enhance_video.sh` | Pipeline principale (bash/ffmpeg). Stabilizzazione, miglioramento colore, audio, overlay, modalità preview e file di progresso. |
 | `add_telemetry.py` | Genera gli overlay `osd.mov` + `minimap.mp4` a partire dal CSV (formato RadioMaster/SkyLog), con cache delle tile OSM in `~/.cache/osm_tiles`. Supporta anche la composizione autonoma (`--out`). |
-| `gui.py` | Interfaccia grafica Tkinter: selezione video/CSV, offset, anteprima rapida, conversione completa, barre di avanzamento, registro, apertura del risultato. |
+| `detect_offset.py` | Rileva automaticamente l'offset video↔telemetria: confronta l'avvio del motore nell'audio del video con l'impennata di throttle nel CSV. |
+| `gui.py` | Interfaccia grafica Tkinter: selezione video/CSV, offset (con pulsante "Rileva"), anteprima rapida, conversione completa, barre di avanzamento, registro, apertura del risultato. |
 | `avvia_gui.command` | Launcher della GUI (doppio clic in Finder o da terminale): sceglie automaticamente un Python con Tkinter 8.6+ / 9.0. |
 
 ## Requisiti
@@ -82,7 +83,7 @@ python3 add_telemetry.py --video GOPR2113.MP4 --csv telemetria.csv \
 | Opzione | Descrizione |
 |---|---|
 | `--csv FILE` | Telemetria (RadioMaster/Betaflight/SkyLog) per OSD + minimappa |
-| `--offset SEC` | Anticipo del video rispetto al CSV (default `3.5`) |
+| `--offset SEC` | Anticipo del video rispetto al CSV (default `3.5`); con `auto` lo rileva automaticamente |
 | `--preview SEC` | Genera solo i primi SEC secondi (anteprima veloce) |
 | `--out FILE` | Nome del file di output |
 | `--progress-file F` | Scrive fase/percentuale/velocità su F (per la GUI) |
