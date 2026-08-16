@@ -116,6 +116,7 @@ class App(tk.Tk):
         self.preview_var = tk.StringVar(value="30")
         self.out_var = tk.StringVar()
         self.open_ext = tk.BooleanVar(value=False)
+        self.loop_var = tk.BooleanVar(value=False)
 
         self.last_dir = ""
         self._load_config()
@@ -218,6 +219,7 @@ class App(tk.Tk):
         self.btn_restart = ttk.Button(trans, text="⏮ Riavvolgi", width=11,
                                       state="disabled", command=self._restart)
         self.btn_restart.pack(side="left", padx=6)
+        ttk.Checkbutton(trans, text="Loop", variable=self.loop_var).pack(side="left", padx=4)
         self.slider = ttk.Scale(trans, from_=0, to=100, length=420,
                                 command=lambda v: None)
         self.slider.pack(side="left", padx=6, fill="x", expand=True)
@@ -445,6 +447,7 @@ class App(tk.Tk):
 
         self._clear_log()
         self._log("$ " + " ".join(cmd) + "\n")
+        self._log(self._estimate_size(video, mode))
         self.bar_total["value"] = 0
         self.lbl_total["text"] = "0%"
         self.bar_phase["value"] = 0
@@ -476,6 +479,26 @@ class App(tk.Tk):
     def _reader(self):
         for line in self.proc.stdout:
             self.log_queue.put(line)
+
+    def _estimate_size(self, video, mode):
+        """Stima la dimensione del file di output."""
+        try:
+            br = ffprobe("-select_streams", "v:0", "-show_entries",
+                         "stream=bit_rate", "-of", "csv=p=0", video)
+            br = int(br.strip() or 0) / 1000.0  # kbps
+            dur = float(ffprobe("-show_entries", "format=duration",
+                                "-of", "csv=p=0", video))
+            if mode == "preview":
+                try:
+                    dur = min(dur, float(self.preview_var.get().strip() or 0))
+                except ValueError:
+                    pass
+            if br > 0 and dur > 0:
+                mb = br * dur / 8.0 / 1000.0 * 1.07  # +overhead contenitore
+                return f"Stima dimensione output: ~{mb:.0f} MB\n"
+        except Exception:
+            pass
+        return ""
 
     def _poll(self):
         if self.proc is None:
@@ -780,15 +803,18 @@ class App(tk.Tk):
                 self._update_transport()
         if self.eof_pending:
             self.eof_pending = False
-            self.decode_playing = False
-            self.finished = True
-            try:
-                self.play_event.clear()
-            except Exception:
-                pass
-            self.btn_play.configure(text="▶ Rivedi")
-            self.ppos = self.pdur
-            self._update_transport()
+            if self.loop_var.get():
+                self._seek(0.0)
+            else:
+                self.decode_playing = False
+                self.finished = True
+                try:
+                    self.play_event.clear()
+                except Exception:
+                    pass
+                self.btn_play.configure(text="▶ Rivedi")
+                self.ppos = self.pdur
+                self._update_transport()
         self.after(40, self._vtick)
 
     # ---------- cancellazione ----------
