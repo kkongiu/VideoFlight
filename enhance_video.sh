@@ -200,8 +200,9 @@ TRANSFORM_TAIL=":zoom=1:optzoom=1:smoothing=${VIDSTAB_SMOOTHING},$COLOR_FILTER"
 # ---------- Barra di avanzamento (sequenziale) ----------
 PROG_BASE=0; PROG_RANGE=100
 
+# Progresso per la GUI: 4 righe => fase, %locale, %globale, velocità
 write_progress() {
-  [[ -n "$PROGRESS_FILE" ]] && printf '%s\n%d\n%s\n' "$1" "$2" "${3:-}" > "$PROGRESS_FILE"
+  [[ -n "$PROGRESS_FILE" ]] && printf '%s\n%d\n%d\n%s\n' "$1" "$2" "${3:-0}" "${4:-}" > "$PROGRESS_FILE"
 }
 
 progress() {
@@ -219,17 +220,19 @@ progress() {
       progress=end) pct=100 ;;
     esac
     if [[ "$pct" -ne "$last_pct" ]]; then
-      local width=40 filled
-      filled=$(( pct * width / 100 ))
-      printf '\r\033[K[%-*s] %3d%%  %s  %s' \
-        "$width" "$(printf '%*s' "$filled" '' | tr ' ' '=')" \
-        "$pct" "$label" "$speed"
-      last_pct="$pct"
       if [[ -n "$PROGRESS_FILE" ]]; then
+        # Niente barra ASCII quando c'è la GUI: pulisce il registro
         local overall=$(( PROG_BASE + pct * PROG_RANGE / 100 ))
         [[ "$overall" -gt 100 ]] && overall=100
-        write_progress "$label" "$overall" "$speed"
+        write_progress "$label" "$pct" "$overall" "$speed"
+      else
+        local width=40 filled
+        filled=$(( pct * width / 100 ))
+        printf '\r\033[K[%-*s] %3d%%  %s  %s' \
+          "$width" "$(printf '%*s' "$filled" '' | tr ' ' '=')" \
+          "$pct" "$label" "$speed"
       fi
+      last_pct="$pct"
     fi
   done
   printf '\n'
@@ -267,10 +270,10 @@ sequential_run() {
 
   if [[ -n "$CSV" ]]; then
     echo "==> Genero overlay OSD + minimappa..."
-    write_progress "overlay" 20
+    write_progress "overlay" 0 20 ""
     python3 "$PY_SCRIPT" --video "$INPUT" --csv "$CSV" \
       --offset "$OFFSET" --render "$WORKDIR" --dur "$DURATION"
-    write_progress "overlay" 30
+    write_progress "overlay" 100 30 ""
 
     FC="[0:v]${TRANSFORM_FILTER}$WORKDIR/transforms.trf${TRANSFORM_TAIL}[base];"
     FC+="[1:v]scale=${MINIMAP_TARGET}:-1,drawbox=x=0:y=0:w=iw:h=ih:color=white@0.85:t=2[m];"
@@ -408,7 +411,7 @@ else
 fi
 
 # ---------- Verifica finale ----------
-write_progress "completato" 100
+write_progress "completato" 100 100 ""
 OUT_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OUTPUT" 2>/dev/null || echo 0)
 echo "==> Fatto! Video generato: $OUTPUT"
 echo "    Durata: input $(echo "$DURATION" | awk '{printf "%.1f s", $1}') -> output $(echo "$OUT_DUR" | awk '{printf "%.1f s", $1}')"
