@@ -1,0 +1,18 @@
+# File video di grandi dimensioni (superano il limite GitHub di 100 MB):
+# restano solo in locale, NON vengono caricati sul repository.
+*.mp4
+*.MP4
+*.mov
+*.MOV
+
+# Telemetria di volo: dati personali, NON viene caricata sul repository.
+*.csv
+
+# Cache Python e file di sistema
+__pycache__/
+*.pyc
+.DS_Store
+.localized
+
+# Log temporanei
+*.log
