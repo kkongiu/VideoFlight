@@ -16,6 +16,8 @@ from fractions import Fraction
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ENHANCE = os.path.join(SCRIPT_DIR, "enhance_video.sh")
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
@@ -131,7 +133,10 @@ class App(tk.Tk):
         opts.grid(row=2, column=0, columnspan=2, sticky="w", **pad)
         ttk.Label(opts, text="Anticipo video (s):").pack(side="left")
         ttk.Spinbox(opts, from_=-10, to=60, increment=0.5, width=6,
-                    textvariable=self.offset_var).pack(side="left", padx=(4, 16))
+                    textvariable=self.offset_var).pack(side="left", padx=(4, 4))
+        self.btn_detect = ttk.Button(opts, text="Rileva", width=7,
+                                     command=self._detect_offset)
+        self.btn_detect.pack(side="left", padx=(0, 16))
         ttk.Label(opts, text="Durata anteprima (s):").pack(side="left")
         ttk.Spinbox(opts, from_=5, to=300, increment=5, width=6,
                     textvariable=self.preview_var).pack(side="left", padx=4)
@@ -261,6 +266,53 @@ class App(tk.Tk):
             filetypes=[("Video MP4", "*.mp4")])
         if p:
             self.out_var.set(p)
+
+    # ---------- rilevamento automatico offset ----------
+    def _detect_offset(self):
+        video = self.video_var.get().strip()
+        csv = self.csv_var.get().strip()
+        if not video or not os.path.isfile(video):
+            messagebox.showerror("Errore", "Seleziona prima un video GoPro.")
+            return
+        if not csv or not os.path.isfile(csv):
+            messagebox.showerror("Errore", "Seleziona prima la telemetria (CSV).")
+            return
+        self.btn_detect.configure(state="disabled")
+        self.detect_queue = queue.Queue()
+
+        def worker():
+            offset = None
+            info = {}
+            msg = "Rilevamento offset non riuscito."
+            try:
+                import detect_offset
+                offset, info = detect_offset.detect_offset(video, csv)
+                if offset is not None:
+                    msg = (f"Offset rilevato: {offset}s "
+                           f"(motore audio {info.get('audio_start'):.2f}s, "
+                           f"throttle {info.get('throttle_start'):.2f}s)")
+            except Exception as e:
+                msg = f"Errore rilevamento: {e}"
+            self.detect_queue.put((offset, msg))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(100, self._detect_poll)
+
+    def _detect_poll(self):
+        if not hasattr(self, "detect_queue"):
+            return
+        try:
+            offset, msg = self.detect_queue.get_nowait()
+        except queue.Empty:
+            self.after(100, self._detect_poll)
+            return
+        self._detect_done(offset, msg)
+
+    def _detect_done(self, offset, msg):
+        self.btn_detect.configure(state="normal")
+        if offset is not None:
+            self.offset_var.set(f"{offset:.1f}")
+        self._log(msg + "\n")
 
     # ---------- avanzamento (step + barre) ----------
     def _set_steps(self, idx):
