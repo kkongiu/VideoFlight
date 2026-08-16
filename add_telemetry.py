@@ -400,7 +400,7 @@ def render_minimap(rows, out_path, dur, limit=None, prog=None):
 # OSD (pannello telemetria renderizzato con PIL, stile avionico)
 # ------------------------------------------------------------------
 def render_osd(rows, out_path, dur, prog=None):
-    W, H = 336, 72
+    W, H = 400, 72
     times = [r["e"] for r in rows]
     mono = "/System/Library/Fonts/Menlo.ttc"
     if not os.path.exists(mono):
@@ -421,12 +421,20 @@ def render_osd(rows, out_path, dur, prog=None):
         i = bisect.bisect_right(times, e) - 1
         i = max(0, min(i, len(rows) - 1))
         r = rows[i]
+        bat = r["bat"]
+        if bat <= 20:
+            bcol = (255, 120, 120)
+        elif bat <= 50:
+            bcol = (255, 200, 90)
+        else:
+            bcol = (120, 225, 120)
         cells = [
             ("SPD", f"{r['gspd']:.0f}", "km/h", (255, 255, 255)),
             ("ALT", f"{r['alt']:.0f}", "m", (255, 255, 255)),
             ("VS", f"{r['vspd']:+.1f}", "m/s",
              (120, 225, 120) if r["vspd"] >= 0 else (255, 150, 120)),
             ("HDG", f"{r['hdg']:.0f}", "\u00b0", (255, 255, 255)),
+            ("BAT", f"{r['bat']:.0f}", "%", bcol),
         ]
         n = len(cells)
         pad = 14
