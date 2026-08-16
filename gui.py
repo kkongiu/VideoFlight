@@ -336,7 +336,7 @@ class App(tk.Tk):
         if not csv or not os.path.isfile(csv):
             messagebox.showerror("Errore", "Seleziona prima la telemetria (CSV).")
             return
-        self.btn_detect.configure(state="disabled")
+        self.btn_detect.configure(state="disabled", text="…")
         self.detect_queue = queue.Queue()
 
         def worker():
@@ -368,7 +368,7 @@ class App(tk.Tk):
         self._detect_done(offset, msg)
 
     def _detect_done(self, offset, msg):
-        self.btn_detect.configure(state="normal")
+        self.btn_detect.configure(state="normal", text="Rileva")
         if offset is not None:
             self.offset_var.set(f"{offset:.1f}")
         self._log(msg + "\n")
@@ -501,6 +501,7 @@ class App(tk.Tk):
         return ""
 
     def _poll(self):
+        self.after(200, self._poll)  # sempre attivo, anche senza elaborazione
         if self.proc is None:
             return
         # flush log
@@ -517,7 +518,6 @@ class App(tk.Tk):
         if self.proc.poll() is None:
             if phase:
                 self._apply_progress(phase, local, overall, speed)
-            self.after(200, self._poll)
         else:
             self._finish(self.proc.returncode)
 
