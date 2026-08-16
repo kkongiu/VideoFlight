@@ -282,7 +282,8 @@ sequential_run() {
     echo "==> Genero overlay OSD + minimappa..."
     write_progress "overlay" 0 20 ""
     python3 "$PY_SCRIPT" --video "$INPUT" --csv "$CSV" \
-      --offset "$OFFSET" --render "$WORKDIR" --dur "$DURATION"
+      --offset "$OFFSET" --render "$WORKDIR" --dur "$DURATION" \
+      --progress-file "$PROGRESS_FILE" --progress-base 20 --progress-range 10
     write_progress "overlay" 100 30 ""
 
     FC="[0:v]${TRANSFORM_FILTER}$WORKDIR/transforms.trf${TRANSFORM_TAIL}[base];"
