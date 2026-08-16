@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """Interfaccia grafica (Tkinter) per enhance_video.sh + add_telemetry.py."""
 import os
+import json
 import queue
 import re
 import signal
@@ -16,6 +17,7 @@ from fractions import Fraction
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 ENHANCE = os.path.join(SCRIPT_DIR, "enhance_video.sh")
+CONFIG_PATH = os.path.expanduser("~/.config/videoflight.json")
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
@@ -115,6 +117,8 @@ class App(tk.Tk):
         self.out_var = tk.StringVar()
         self.open_ext = tk.BooleanVar(value=False)
 
+        self.last_dir = ""
+        self._load_config()
         self._build()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(200, self._poll)
@@ -245,9 +249,11 @@ class App(tk.Tk):
     def _browse_video(self):
         p = filedialog.askopenfilename(
             title="Scegli il video GoPro",
+            initialdir=self.last_dir or None,
             filetypes=[("Video MP4", "*.mp4 *.MP4"), ("Tutti i file", "*")])
         if p:
             self.video_var.set(p)
+            self.last_dir = os.path.dirname(p)
             if not self.out_var.get():
                 base = os.path.splitext(p)[0]
                 self.out_var.set(base + "_enhanced.mp4")
@@ -255,17 +261,68 @@ class App(tk.Tk):
     def _browse_csv(self):
         p = filedialog.askopenfilename(
             title="Scegli la telemetria (CSV)",
+            initialdir=self.last_dir or None,
             filetypes=[("CSV", "*.csv"), ("Tutti i file", "*")])
         if p:
             self.csv_var.set(p)
+            self.last_dir = os.path.dirname(p)
 
     def _browse_out(self):
         p = filedialog.asksaveasfilename(
             title="File di output",
+            initialdir=self.last_dir or None,
             defaultextension=".mp4",
             filetypes=[("Video MP4", "*.mp4")])
         if p:
             self.out_var.set(p)
+
+    # ---------- impostazioni persistenti ----------
+    def _load_config(self):
+        cfg = {}
+        try:
+            with open(CONFIG_PATH) as f:
+                cfg = json.load(f)
+        except Exception:
+            return
+        self.last_dir = cfg.get("last_dir", "") or ""
+        # video/csv solo se il file esiste ancora
+        for key, var in (("video", self.video_var), ("csv", self.csv_var)):
+            v = cfg.get(key, "")
+            if isinstance(v, str) and v and os.path.isfile(v):
+                var.set(v)
+        for key, var, default in (("offset", self.offset_var, "3.5"),
+                                  ("preview_sec", self.preview_var, "30")):
+            v = cfg.get(key)
+            if isinstance(v, (int, float, str)) and str(v).strip():
+                var.set(str(v).strip())
+            else:
+                var.set(default)
+        if isinstance(cfg.get("open_ext"), bool):
+            self.open_ext.set(cfg["open_ext"])
+        geo = cfg.get("geometry")
+        if isinstance(geo, str) and geo:
+            try:
+                self.geometry(geo)
+            except Exception:
+                pass
+
+    def _save_config(self, save_geometry=False):
+        cfg = {
+            "video": self.video_var.get().strip(),
+            "csv": self.csv_var.get().strip(),
+            "offset": self.offset_var.get().strip(),
+            "preview_sec": self.preview_var.get().strip(),
+            "open_ext": bool(self.open_ext.get()),
+            "last_dir": self.last_dir,
+        }
+        if save_geometry and self.winfo_viewable():
+            cfg["geometry"] = self.geometry()
+        try:
+            os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+            with open(CONFIG_PATH, "w") as f:
+                json.dump(cfg, f, indent=2)
+        except OSError:
+            pass
 
     # ---------- rilevamento automatico offset ----------
     def _detect_offset(self):
@@ -402,6 +459,7 @@ class App(tk.Tk):
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1, start_new_session=True)
         threading.Thread(target=self._reader, daemon=True).start()
+        self._save_config()
 
     def _kill(self, proc):
         """Termina il processo e tutto il suo gruppo (figli inclusi)."""
@@ -763,6 +821,7 @@ class App(tk.Tk):
                 return
             self._kill(self.proc)
         self._player_stop()
+        self._save_config(save_geometry=True)
         self.destroy()
 
 

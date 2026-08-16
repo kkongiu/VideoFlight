@@ -117,6 +117,8 @@ Funzionante:
   conversione il risultato si carica direttamente nella finestra, con
   Play/Pausa, Riavvolgi, slider di posizione e timestamp (decodifica via
   ffmpeg, visualizzazione con Pillow)
+- **impostazioni persistenti**: ultimi percorsi video/CSV, offset, durata
+  anteprima e preferenze salvati in `~/.config/videoflight.json`
 - la GUI è stata adattata a Tk 9.0 (il Tk 8.5 del Python pyenv non è
   compatibile con macOS 15: usare comunque `avvia_gui.command`)
 
