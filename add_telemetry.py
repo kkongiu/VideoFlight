@@ -109,6 +109,28 @@ def find_font():
             return p
     return None
 
+
+# ------------------------------------------------------------------
+# Progresso (opzionale, verso la GUI)
+# ------------------------------------------------------------------
+PROGRESS_FILE = None
+PROGRESS_BASE = 0
+PROGRESS_RANGE = 100
+
+
+def report_progress(local_pct):
+    """Scrive fase/percentuale sul progress-file (formato a 4 righe)."""
+    if not PROGRESS_FILE:
+        return
+    local = max(0, min(100, int(local_pct)))
+    overall = PROGRESS_BASE + local * PROGRESS_RANGE // 100
+    overall = max(0, min(100, overall))
+    try:
+        with open(PROGRESS_FILE, "w") as f:
+            f.write(f"overlay\n{local}\n{overall}\n\n")
+    except OSError:
+        pass
+
 # ------------------------------------------------------------------
 # Caricamento dati
 # ------------------------------------------------------------------
@@ -261,7 +283,7 @@ def catmull_rom(p0, p1, p2, p3, t):
                   (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
 
 
-def render_minimap(rows, out_path, dur, limit=None):
+def render_minimap(rows, out_path, dur, limit=None, prog=None):
     img, to_px = build_map_image(rows)
     W, H = img.size
 
@@ -366,6 +388,9 @@ def render_minimap(rows, out_path, dur, limit=None):
         t = i / FPS
         frame = frame_at(t)
         proc.stdin.write(frame.tobytes())
+        if prog:
+            frac = (i + 1) / n_frames
+            report_progress((prog[0] + frac * (prog[1] - prog[0])) * 100)
     proc.stdin.close()
     if proc.wait() != 0:
         sys.exit("ERRORE: codifica minimappa fallita")
@@ -374,7 +399,7 @@ def render_minimap(rows, out_path, dur, limit=None):
 # ------------------------------------------------------------------
 # OSD (pannello telemetria renderizzato con PIL, stile avionico)
 # ------------------------------------------------------------------
-def render_osd(rows, out_path, dur):
+def render_osd(rows, out_path, dur, prog=None):
     W, H = 336, 72
     times = [r["e"] for r in rows]
     mono = "/System/Library/Fonts/Menlo.ttc"
@@ -424,6 +449,9 @@ def render_osd(rows, out_path, dur):
     for i in range(n_frames):
         t = i / OSD_FPS
         proc.stdin.write(frame_at(t).tobytes())
+        if prog:
+            frac = (i + 1) / n_frames
+            report_progress((prog[0] + frac * (prog[1] - prog[0])) * 100)
     proc.stdin.close()
     if proc.wait() != 0:
         sys.exit("ERRORE: codifica OSD fallita")
@@ -468,10 +496,18 @@ def main():
     ap.add_argument("--no-map", action="store_true", help="salta la minimappa")
     ap.add_argument("--limit", type=int, default=0,
                     help="test: numero massimo di frame minimappa")
+    ap.add_argument("--progress-file", default=None,
+                    help="file di progresso per la GUI (fase overlay)")
+    ap.add_argument("--progress-base", type=int, default=0)
+    ap.add_argument("--progress-range", type=int, default=100)
     args = ap.parse_args()
 
     global OFFSET
     OFFSET = args.offset
+    global PROGRESS_FILE, PROGRESS_BASE, PROGRESS_RANGE
+    PROGRESS_FILE = args.progress_file
+    PROGRESS_BASE = args.progress_base
+    PROGRESS_RANGE = args.progress_range
 
     if not os.path.exists(args.video):
         sys.exit(f"ERRORE: video non trovato: {args.video}")
@@ -491,10 +527,11 @@ def main():
         minimap_path = os.path.join(args.render, "minimap.mp4")
         overlay_dur = args.dur if args.dur > 0 else dur
         print("==> Genero pannello OSD (osd.mov)...")
-        render_osd(rows, osd_path, overlay_dur)
+        render_osd(rows, osd_path, overlay_dur, prog=(0.0, 0.4))
         if not args.no_map:
             print("==> Genero minimappa (minimap.mp4)...")
-            render_minimap(rows, minimap_path, overlay_dur, limit=args.limit)
+            render_minimap(rows, minimap_path, overlay_dur, limit=args.limit,
+                           prog=(0.4, 1.0))
         print("==> Overlay generati in:", args.render)
         return
 
