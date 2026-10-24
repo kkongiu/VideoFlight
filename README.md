@@ -1,5 +1,10 @@
 # VideoFlight
 
+![status: alpha](https://img.shields.io/badge/status-alpha-red)
+
+> ⚠️ **Status: alpha** — early-stage software, may be incomplete or unstable.
+> **Use at your own risk.**
+
 Miglioramento e stabilizzazione di video GoPro (prima serie) con overlay di
 telemetria di volo (OSD + minimappa) e interfaccia grafica di gestione.
 
